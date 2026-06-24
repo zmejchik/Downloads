@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Мониторинг MPI-C</title>
+
+<style>
+body{
+    font-family: Arial, sans-serif;
+    margin:20px;
+}
+
+h2{
+    margin-bottom:15px;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+th,td{
+    border:1px solid #ccc;
+    padding:8px;
+}
+
+th{
+    background:#c00000;
+    color:white;
+}
+
+.param{
+    text-align:left;
+}
+
+.value{
+    text-align:center;
+}
+
+.online{
+    color:green;
+    font-weight:bold;
+}
+
+.offline{
+    color:red;
+    font-weight:bold;
+}
+
+.refresh{
+    margin-top:10px;
+    color:#666;
+}
+</style>
+
+</head>
+<body>
+
+<h2>MPI-C Мониторинг</h2>
+
+<table>
+<thead>
+<tr>
+<th>Параметр</th>
+<th>78.10.198.201</th>
+<th>78.10.184.213</th>
+<th>78.10.197.115</th>
+</tr>
+</thead>
+<tbody id="data"></tbody>
+</table>
+
+<div class="refresh">
+Автообновление каждые 10 секунд
+</div>
+
+<script>
+
+const DEVICES = [
+    "http://78.10.198.201",
+    "http://78.10.184.213",
+    "http://78.10.197.115"
+];
+
+async function loadXML(url){
+    const response = await fetch(url);
+    const text = await response.text();
+    return new DOMParser().parseFromString(text,"text/xml");
+}
+
+async function readDevice(ip){
+
+    try{
+
+        const d1 = await loadXML(ip + "/d1.xml");
+        const d3 = await loadXML(ip + "/d3.xml");
+
+        const result = [];
+
+        for(let i=1;i<=20;i++){
+
+            const val =
+                d1.querySelector(`IN[i="${i}"]`)?.textContent || "";
+
+            const name =
+                d3.querySelector(`OP[i="${i}"]`)?.textContent || "";
+
+            const unit =
+                d3.querySelector(`JD[i="${i}"]`)?.textContent || "";
+
+            result.push({
+                name,
+                value: val,
+                unit
+            });
+        }
+
+        return result;
+
+    }catch(err){
+        return null;
+    }
+}
+
+async function update(){
+
+    const devices = await Promise.all(
+        DEVICES.map(readDevice)
+    );
+
+    const tbody = document.getElementById("data");
+
+    let html = "";
+
+    for(let i=0;i<20;i++){
+
+        const name =
+            devices[0]?.[i]?.name ||
+            `IN${i+1}`;
+
+        const unit =
+            devices[0]?.[i]?.unit || "";
+
+        if(name === "") continue;
+
+        html += "<tr>";
+
+        html += `
+            <td class="param">
+                ${name} ${unit}
+            </td>
+        `;
+
+        for(let d=0; d<3; d++){
+
+            if(devices[d]){
+
+                html += `
+                <td class="value">
+                    ${devices[d][i].value}
+                </td>`;
+            }
+            else{
+
+                html += `
+                <td class="offline">
+                    Нет связи
+                </td>`;
+            }
+        }
+
+        html += "</tr>";
+    }
+
+    tbody.innerHTML = html;
+}
+
+update();
+setInterval(update,10000);
+
+</script>
+
+</body>
+</html>
